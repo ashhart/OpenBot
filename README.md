@@ -92,12 +92,16 @@ anything outside that directory and will not follow a symlink out of it.
 HTTP fetch, web search, inline visualisations, todos, per-bot memory, hand-off,
 and the computer-use set below. Each bot chooses which of them it may use.
 
-**Computer use (macOS).** Screenshot, click, type, key, scroll, drag, open app,
-navigate — implemented with `screencapture`, `sips` and `osascript`, no native
-modules. Off by default for every bot. Every action is gated: the target app
-must be on your allowlist, a preview frame is captured and shown on an approval
-card you have to accept, and the result frame is captured afterwards. Approval
-for a computer action never generalises into a blanket rule.
+**Computer use (macOS host and Bot browser).** Host screenshots, clicks, typing,
+keys, scrolling, dragging, app opening and navigation are implemented with
+`screencapture`, `sips` and `osascript`, no native modules. The separate Bot
+browser target also works when OpenBOT is run from source on Linux, if a supported
+Chrome-family browser is available on `PATH`. This is not full Linux OpenBOT
+support: local desktop control, managed VMs and Linux packaging remain out of
+scope. Off by default for every bot. Every action is gated: the target app must
+be on your allowlist, a preview frame is captured and shown on an approval card
+you have to accept, and the result frame is captured afterwards. Approval for a
+computer action never generalises into a blanket rule.
 
 **Per-bot execution targets.** A bot can use this Mac, its own persistent Chrome
 profile, a one-click lightweight Linux VM, or an external VM endpoint. Each
@@ -158,9 +162,12 @@ output can render reviewable email, message and link cards.
 
 ## Requirements
 
-- **macOS.** The packaged build targets macOS only, and computer use is
+- **macOS.** The packaged build targets macOS only, and host computer use is
   macOS-only by construction. Most of the rest of the codebase is
   platform-neutral, but nothing else is built or tested.
+- **Linux (Bot browser from source only).** The Bot browser target can use a
+  supported Chrome-family browser resolved from `PATH` when OpenBOT is run from
+  source. OpenBOT is not otherwise supported or packaged on Linux.
 - **Node.js** `^20.19.0 || >=22.12.0`.
 - At least one agent CLI on your `PATH`, or an API key for one of the direct
   backends. OpenBOT will not install a CLI for you; it detects what you have and
@@ -176,12 +183,15 @@ output can render reviewable email, message and link cards.
 
 ## Build it from source
 
-There are no downloads. You build OpenBOT on the Mac that will run it, which
-takes about five minutes, most of it waiting for `npm install`.
+There are no downloads. You build OpenBOT from source on the machine that will
+run it, which takes about five minutes, most of it waiting for `npm install`.
+The packaged app and packaging steps below are macOS-only; Linux source use is
+limited to the Bot browser target described above.
 
 **Before you start** you need [Node.js](https://nodejs.org) `^20.19.0` or
-`>=22.12.0` (`node --version` to check), `git`, and Xcode Command Line Tools
-(`xcode-select --install` — macOS will usually have prompted for these already).
+`>=22.12.0` (`node --version` to check) and `git`. macOS builds also need Xcode
+Command Line Tools (`xcode-select --install` — macOS will usually have prompted
+for these already).
 
 **1. Get the source and install the toolchain.**
 
@@ -191,13 +201,13 @@ cd openbot
 npm install
 ```
 
-This also downloads the Electron runtime for your Mac, so it is the slow step.
+This also downloads the Electron runtime for your platform, so it is the slow step.
 `npm install` deliberately blocks dependency install scripts; the `allowScripts`
 field in `package.json` lists the two that are reviewed and required (Electron's
 binary download and esbuild's platform binary). Do not remove it — without those
 entries the app cannot build.
 
-**2. Build the app.**
+**2. Build the macOS app.**
 
 ```sh
 npm run pack
@@ -303,7 +313,8 @@ the bot editor under **Execution target**:
 
 - **Bot browser** — its own persistent Chrome profile, separate from yours. Good
   for a bot that needs to stay logged in somewhere without touching your own
-  browser session.
+  browser session. From source, it works on macOS and has narrow Linux support
+  when a supported browser is on `PATH`.
 - **Bot VM** — a dedicated lightweight Linux VM with its own workspace and an
   Openbox/X11 desktop running Chromium. Its files, shell, fetch, web search,
   screenshots and input all stay inside the VM.
@@ -419,16 +430,18 @@ Honest list. These are structural gaps, not bugs hidden behind a switch.
   whenever that page changes. It degrades to telling the model to use `fetch`.
 - **Supervised CLI turns are bounded only by a 20-minute idle timeout**, not by
   an iteration count. A CLI that keeps emitting output keeps running.
-- **Windows and Linux are unbuilt.** No targets, no testing. Much of the code is
-  platform-neutral and some of it has win32 branches, but none of that is
-  exercised.
+- **Windows is unbuilt, and Linux desktop support is not provided.** Local
+  computer control, managed VMs and packaged builds remain macOS-only. The
+  narrow exception is the source-run Bot browser target, which discovers an
+  installed Chrome-family browser on Linux; that does not make OpenBOT fully
+  supported on Linux.
 
 ### Unsigned by design
 
 There are no notarised downloads, and there is no plan for any: signing and
 notarisation need a paid Apple Developer account, which this project does not
-have. **OpenBOT is meant to be built from source on the Mac that will run it** —
-see "Build it from source" above.
+have. **The packaged macOS app is meant to be built from source on the Mac that
+will run it** — see "Build it from source" above.
 
 `build/entitlements.mac.plist` is present and correct — in particular
 `com.apple.security.automation.apple-events`, without which every computer-use

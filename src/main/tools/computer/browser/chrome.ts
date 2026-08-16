@@ -8,22 +8,48 @@
 
 import { access } from 'node:fs/promises'
 import { constants } from 'node:fs'
+import { which } from '../../../backends/which'
 
-/** Checked in order; the first that exists wins. */
-const CHROME_CANDIDATES = [
+/** Existing macOS app bundles, checked in order; the first that exists wins. */
+const MAC_CHROME_CANDIDATES = [
   '/Applications/Google Chrome.app/Contents/MacOS/Google Chrome',
   '/Applications/Chromium.app/Contents/MacOS/Chromium',
   '/Applications/Microsoft Edge.app/Contents/MacOS/Microsoft Edge',
   '/Applications/Brave Browser.app/Contents/MacOS/Brave Browser'
 ]
 
+/** Common Linux executable names, resolved through the hydrated login-shell PATH. */
+const LINUX_CHROME_CANDIDATES = [
+  'google-chrome',
+  'google-chrome-stable',
+  'chromium',
+  'chromium-browser',
+  'microsoft-edge',
+  'microsoft-edge-stable',
+  'brave-browser'
+]
+
 export const CHROME_MISSING_MESSAGE =
-  'No Chrome-family browser is installed. A browser target needs Google Chrome, Chromium, ' +
-  'Microsoft Edge or Brave — install one and try again.'
+  process.platform === 'linux'
+    ? 'No supported Chrome-family browser was found on PATH. On Linux, install Google Chrome, Chromium, Microsoft Edge or Brave and try again.'
+    : process.platform === 'darwin'
+      ? 'No Chrome-family browser is installed. A browser target needs Google Chrome, Chromium, ' +
+        'Microsoft Edge or Brave — install one and try again.'
+      : 'Bot browser targets are not supported on this operating system.'
 
 /** Absolute path to a usable browser binary, or `undefined`. */
 export async function findChrome(): Promise<string | undefined> {
-  for (const candidate of CHROME_CANDIDATES) {
+  if (process.platform === 'linux') {
+    for (const candidate of LINUX_CHROME_CANDIDATES) {
+      const resolved = await which(candidate)
+      if (resolved) return resolved
+    }
+    return undefined
+  }
+
+  if (process.platform !== 'darwin') return undefined
+
+  for (const candidate of MAC_CHROME_CANDIDATES) {
     try {
       await access(candidate, constants.X_OK)
       return candidate

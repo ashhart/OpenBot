@@ -9,7 +9,9 @@
  */
 
 import type { ComputerProbeResult, ComputerTarget } from '../../shared/types'
+import { dataRoot } from '../store/paths'
 import { vmToken } from '../store/vmSecrets'
+import { getComputerProvider } from '../tools/computer'
 import { VmComputerProvider } from '../tools/computer/vmProvider'
 import {
   destroyAppleVm,
@@ -52,12 +54,11 @@ export async function probeTarget(
   botId?: string,
   signal?: AbortSignal
 ): Promise<ComputerProbeResult> {
-  if (target.kind !== 'vm') {
-    return {
-      ok: true,
-      detail: target.kind === 'local' ? 'This Mac is selected.' : 'The isolated browser profile is ready.',
-      isolatedExecution: target.kind === 'local'
-    }
+  if (target.kind === 'local') {
+    return { ok: true, detail: 'This Mac is selected.', isolatedExecution: true }
+  }
+  if (target.kind === 'browser') {
+    return getComputerProvider(target, { botId, dataDir: dataRoot() }).probe(signal)
   }
   const controlToken = (): string | undefined =>
     target.token?.trim() ||

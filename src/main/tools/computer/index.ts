@@ -31,8 +31,9 @@ export const LOCAL_TARGET: ComputerTarget = { kind: 'local' }
 
 export interface ProviderOptions {
   /**
-   * Root for durable per-target state — Electron's `app.getPath('userData')`.
-   * A browser's profile lives under it. Derived at runtime when omitted.
+   * Root for durable per-target state — Electron's `app.getPath('userData')`, or
+   * `OPENBOT_DATA_DIR`. A browser's profile lives under it. Derived at runtime
+   * when omitted.
    */
   dataDir?: string
   /** Owning bot, used for credentials and targeted lifecycle cleanup. */
@@ -59,11 +60,15 @@ export function getComputerProvider(
   const existing = providers.get(key)
   if (existing) return existing
 
+  // Keep direct tool calls on the same root as the store when the app uses its
+  // portable/test data-directory override.
+  const browserDataDir = options.dataDir ?? (process.env['OPENBOT_DATA_DIR'] || undefined)
+
   const created: ComputerProvider =
     target.kind === 'vm'
       ? new VmComputerProvider(target, { token: () => (options.botId ? vmToken(options.botId) : target.token) })
       : target.kind === 'browser'
-        ? browserFor(target.botId, { userDataDir: options.dataDir })
+        ? browserFor(target.botId, { userDataDir: browserDataDir })
         : new LocalComputerProvider()
 
   providers.set(key, created)

@@ -30,7 +30,7 @@ export function defaultUserDataDir(appName = 'OpenBOT'): string {
   const home = homedir()
   if (process.platform === 'darwin') return join(home, 'Library', 'Application Support', appName)
   if (process.platform === 'win32') return join(home, 'AppData', 'Roaming', appName)
-  return join(home, '.config', appName)
+  return join(process.env['XDG_CONFIG_HOME'] || join(home, '.config'), appName)
 }
 
 export function profileLayout(botId: string, userDataDir?: string): ProfileLayout {
