@@ -36,7 +36,8 @@
     "vm-daemon": "node out/main/vmDaemon.js",
     "dist": "node -e \"require('electron')\" && electron-vite build && electron-builder --mac",
     "pack": "node -e \"require('electron')\" && electron-vite build && electron-builder --mac --dir",
-    "typecheck": "tsc --noEmit -p tsconfig.json"
+    "typecheck": "tsc --noEmit -p tsconfig.json",
+    "test": "esbuild src/main/tools/shell/classify.test.ts --bundle --platform=node --format=esm --outdir=out/test --log-level=warning && node --test out/test/classify.test.js"
   },
   "build": {
     "appId": "com.openbot.app",

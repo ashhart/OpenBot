@@ -83,6 +83,25 @@ const PROGRAM_FIRST_ARG = new Set(['awk', 'gawk', 'mawk', 'nawk'])
 /** Interpreters whose program is itself a shell command worth analysing again. */
 const SHELL_PROGRAM = new Set(['sh', 'bash', 'zsh', 'ksh', 'dash', 'fish', 'env'])
 
+/*
+ * Read-only commands that run a pager of their own when told to.
+ *
+ * `man -P` and `bat --pager` take a command line and run it — `man` through an
+ * `eval` in its own script, `bat` by splitting the words — and `PAGER`,
+ * `MANPAGER` and `GIT_PAGER` name the same command from the environment. All of
+ * it sits behind binaries rated `safe` (`git -p log` forces the pager even on a
+ * pipe), so `man -P "rm -rf /Users/me" ls` ran with no card under every policy
+ * but `ask-every-time`. The denylist never saw the delete either: it is a quoted
+ * argument of a command that is not an interpreter, so `scanForms` dropped the
+ * argument, and `pathArguments` resolved the whole quoted string to a name
+ * inside the workspace. A pager is a command, so it is analysed as one.
+ */
+const PAGER_FLAGS: Record<string, ReadonlySet<string>> = {
+  man: new Set(['-P', '--pager']),
+  bat: new Set(['--pager'])
+}
+const PAGER_VARIABLE = /^(?:PAGER|MANPAGER|GIT_PAGER)=(.*)$/
+
 /** How deep nested substitutions are followed before we stop and just say high. */
 const MAX_NESTING = 3
 
@@ -104,15 +123,26 @@ function inlinePrograms(tokens: string[]): InlineProgram[] {
   const found: InlineProgram[] = []
   for (let i = 0; i < tokens.length; i++) {
     const token = tokens[i] ?? ''
+    // Anywhere, not only ahead of the head binary: `env PAGER=… man` puts the
+    // assignment behind a wrapper, and `headBinary` steps over both.
+    const variable = PAGER_VARIABLE.exec(token)
+    if (variable) {
+      found.push({ binary: token.slice(0, token.indexOf('=')), source: variable[1] ?? '', shell: true })
+      continue
+    }
     const binary = token.includes('/') ? (token.split('/').pop() ?? token) : token
-    const flags = PROGRAM_FLAGS[binary]
+    const pager = Object.hasOwn(PAGER_FLAGS, binary) ? PAGER_FLAGS[binary] : undefined
+    const flags = pager ?? PROGRAM_FLAGS[binary]
     if (!flags) continue
-    const shell = SHELL_PROGRAM.has(binary)
+    const shell = pager !== undefined || SHELL_PROGRAM.has(binary)
 
     let taken = false
-    for (let j = i + 1; j < tokens.length - 1; j++) {
-      if (!flags.has(tokens[j] ?? '')) continue
-      found.push({ binary, source: tokens[j + 1] ?? '', shell })
+    for (let j = i + 1; j < tokens.length; j++) {
+      const [flag, attached] = splitFlag(tokens[j] ?? '')
+      if (!flags.has(flag)) continue
+      const source = attached ?? tokens[j + 1]
+      if (source === undefined) continue
+      found.push({ binary, source, shell })
       taken = true
     }
     // `awk 'prog'` carries its program as the first bare argument instead.
@@ -126,6 +156,12 @@ function inlinePrograms(tokens: string[]): InlineProgram[] {
     }
   }
   return found
+}
+
+/** `--flag=value` as its two halves; any other token is itself with no value. */
+function splitFlag(token: string): [string, string | undefined] {
+  const at = token.startsWith('--') ? token.indexOf('=') : -1
+  return at === -1 ? [token, undefined] : [token.slice(0, at), token.slice(at + 1)]
 }
 
 /**
